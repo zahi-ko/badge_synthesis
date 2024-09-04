@@ -1,13 +1,15 @@
-from dataclasses import dataclass
+import pickle
 import sqlite3
+import datetime
+
+from .models import User, Record, Progress
 
 conn = sqlite3.connect("data.db")
 cursor = conn.cursor()
 
 class UtilDatabase:
+    
     """
-    @param cursor: sqlite3.Cursor
-    @param name: str
     @param fields: dict {field_name: field_type (TEXT, INTEGER, REAL, BLOB)}
     """
     @staticmethod
@@ -40,7 +42,7 @@ class UtilDatabase:
         cursor.execute(command, values)
 
     @staticmethod
-    def update_data_by_id(cursor, data_name: str = None, data: dict = None, condition: dict = None):
+    def update_data(cursor, data_name: str = None, data: dict = None, condition: dict = None):
         if data_name is None or data is None:
             raise ValueError("data_name and data should be given")
         command_prefix = f"UPDATE {data_name} SET "
@@ -91,77 +93,103 @@ class UtilDatabase:
         return UtilDatabase.safe_action(UtilDatabase.create_table, conn, cursor, name, fields)
 
     @staticmethod
-    def safe_update_data_by_id(conn, cursor, data_name: str, data: dict, condition: dict):
-        return UtilDatabase.safe_action(UtilDatabase.update_data_by_id, conn, cursor, data_name, data, condition)
-
-@dataclass()
-class Record:
-    id: int
-    value: int
-    user_id: int
-    record_time: str
-
-@dataclass()
-class Progress:
-    id: int
-    user_id: int
-    progress_file: str 
-
-@dataclass()
-class User:
-    id: int
-    name: str
-    password: str
-    records: list[Record]
-    progresses: list[Progress]
+    def safe_update_data(conn, cursor, data_name: str, data: dict, condition: dict):
+        return UtilDatabase.safe_action(UtilDatabase.update_data, conn, cursor, data_name, data, condition)
 
 class UtilDataclass:
     @staticmethod
-    def construct_user_from_database(conn, name: str, password: str):
+    def construct_user(conn, name: str, password: str):
         res = UtilDatabase.safe_select_data(conn, cursor, "user",
             ["id", "name"], {"name": name, "password": password})
         
         if not res: return None
-        return User(id=res[0][0], name=res[0][1], password=password, records=[], progresses=[])
+        return User(id=res[0][0], name=res[0][1], password=password, records=[], progress=None)
 
     @staticmethod
-    def construct_records_from_database(user_id: int):
+    def construct_records(user_id: int):
         res = UtilDatabase.safe_select_data(conn, cursor, "record",
-            ["id", "value", "record_time"], {"user_id": user_id})
+            ["value", "record_time"], {"user_id": user_id})
         
         records = []
         for record in res:
-            records.append(Record(id=record[0], value=record[1], user_id=user_id, record_time=record[2]))
-        return
+            records.append(Record(value=record[0], user_id=user_id, record_time=record[1]))
+        return records
     
     @staticmethod
     def construct_progresses_from_database(user_id: int):
         res = UtilDatabase.safe_select_data(conn, cursor, "progress",
             ["progress_file"], {"user_id": user_id})
         
-        progresses = []
-        for progress in res:
-            progresses.append(Progress(progress_file=progress[0]))
-        return progresses
+        if res: return Progress(user_id=user_id, progress_file=res[0][0])
 
     @staticmethod
     def update_user_to_database(user: User):
-        UtilDatabase.safe_update_data_by_id(conn, cursor, "user",
-                     {"name": user.name, "password": user.password}, f"WHERE id = {user.id}")
+        user and user.name and user.password and \
+        UtilDatabase.safe_update_data(conn, cursor, "user",
+                     {"name": user.name, "password": user.password}, {"id": user.id})
         
+        UtilDataclass.update_progress_to_database(user.progress)
+
+        if not user.records: return
         for record in user.records:
             UtilDataclass.update_record_to_database(record)
         
-        for progress in user.progresses:
-            UtilDataclass.update_progress_to_database(progress)
-    
     @staticmethod
     def update_record_to_database(record: Record):
-        UtilDatabase.safe_update_data_by_id(conn, cursor, "record",
-                {"value": record.value, "record_time": record.record_time}, f"WHERE id = {record.id}")
+        record and record.user_id and record.value and record.record_time and \
+        UtilDatabase.safe_update_data(conn, cursor, "record",
+                {"value": record.value, "record_time": record.record_time}, {"user_id": record.user_id})
 
     @staticmethod
     def update_progress_to_database(progress: Progress):
-        UtilDatabase.safe_update_data_by_id(conn, cursor, "progress",
-                {"progress_file": progress.progress_file}, f"WHERE id = {progress.id}")
+        progress and progress.progress_file and progress.user_id and \
+        UtilDatabase.safe_update_data(conn, cursor, "progress",
+                {"progress_file": progress.progress_file}, {"user_id": progress.user_id})
         
+class UtilProgress:
+    @staticmethod
+    def load(progress: Progress):
+        progress_file = progress.progress_file
+        with open(progress_file, "rb") as f:
+            return pickle.load(f)
+    
+    @staticmethod
+    def save(user: User, data):
+        now = datetime.datetime.now()
+        time_format = now.strftime("%Y-%m-%d-%H:%M")
+        progress_file = f"{time_format}.pickle"
+
+        with open(progress_file, "wb") as f:
+            pickle.dump(data, f)
+
+        UtilDatabase.safe_update_data(conn, cursor, "progress", 
+                                            {"progress_file": progress_file}, {"user_id": user.id})
+
+    @staticmethod
+    def get_owner(progress: Progress):
+        return UtilDatabase.safe_select_data(conn, cursor, "user", ["name"], {"id": progress.user_id})[0][0]
+
+class UtilRecord:
+    @staticmethod
+    def get_owner(record: Record):
+        # 通过逻辑运算的短路特性，如果record为None，不会执行后面的查询操作
+        return record and \
+        UtilDatabase.safe_select_data(conn, cursor, "user", ["name"], {"id": record.user_id})[0][0]
+
+    @staticmethod
+    def generate_time(record: Record):
+        if record: record.record_time = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M")
+    
+    def format(record: Record):
+        if record: return f"{UtilRecord.get_owner(record)}: {record.value} at {record.record_time}"
+
+class UtilUser:
+    @staticmethod
+    def change_password(user: User, new_password: str):
+        user.password = new_password
+        UtilDataclass.update_user_to_database(user)
+    
+    @staticmethod
+    def change_name(user: User, new_name: str):
+        user.name = new_name
+        UtilDataclass.update_user_to_database(user)
