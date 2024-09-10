@@ -2,7 +2,8 @@ import pickle
 import sqlite3
 import datetime
 
-from .models import User, Record, Progress
+
+from models import User, Record, Progress
 
 conn = sqlite3.connect("data.db")
 cursor = conn.cursor()
@@ -193,3 +194,14 @@ class UtilUser:
     def change_name(user: User, new_name: str):
         user.name = new_name
         UtilDataclass.update_user_to_database(user)
+
+def load_img_for_number(number: int, path: str = "images/numbers.png"):
+    if not path: return
+    from arcade import load_texture
+
+    number = str(number)
+    
+    return load_texture(path, x=number*69, width=69, height=60, hit_box_algorithm="None")
+
+
+    
