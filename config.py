@@ -7,7 +7,7 @@ FPS = 60
 
 NUMBER_PATH = "assets/images/number.png"
 BADGE_PATH = "assets/images/badge.png"
-PLATFORM_PATH = ":resources:images/tiles/dirtHalf.png"
+PLATFORM_PATH = "assets/images/platform.jpg"
 
 SYNTHESIS_SOUND_PATH = "assets/sounds/synthesis.mp3"
 SPEEDUP_SOUND_PATH = "assets/sounds/speedup.mp3"
@@ -24,9 +24,9 @@ DEFAULT_DAMPING = 1.0
 PLAYER_DAMPING = 0.4
 
 PLYAYER_FRICITON = 1.0
-PLATFORM_FRICTION = 0.7
+PLATFORM_FRICTION = 2.0
 DYNAMIC_ITEMS_FRICTION = 0.6
 
 PLAYER_MASS = 2.0
-MAX_VERTICAL_SPEED = -50
-MAX_HORIZONTAL_SPEED = 40
+MAX_VERTICAL_SPEED = -20
+HORIZONTAL_SPEED = 10
