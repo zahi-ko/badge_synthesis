@@ -1,29 +1,41 @@
-import enum
 import os
-from re import S
+
+import arcade.csscolor
+import arcade.csscolor
+import pymunk
 import arcade
 import arcade.key
-import pymunk
 
 from config import *
 
 
-class BadgeSprite(arcade.Sprite):
-    def __init__(self, image_path, scale=1):
-        super().__init__(image_path, scale=scale, hit_box_algorithm="Detailed")
-        self.size = 1
+class BadgeSprite(arcade.SpriteCircle):
+    def __init__(self, image_path, scale, radius=32, color=(0, 0, 0, 0), soft=False):
+        super().__init__(radius, color, soft)
 
-        self.inbound = True
+        self.size = 1
+        self._hit_box_algorithm = "Detailed"
+
         self.center_x = WINDOW_WIDTH // 2
         self.center_y = WINDOW_HEIGHT
 
-    def draw(self, *, delta=10, filter=None, pixelated=None, blend_function=None):
-        tmp = self.angle
-        self.angle = 20 * delta
-        super().draw(filter=filter, pixelated=pixelated, blend_function=blend_function)
-        self.angle = tmp
-        return True
+        # !当使用全透明后，sprite似乎不会自动生成hitbox，所以需要手动设置
+        self.set_hit_box([
+            (-radius, -radius),
+            (radius, -radius),
+            (radius, radius),
+            (-radius, radius)
+        ])
+        
 
+        self.visual_badge = arcade.Sprite(image_path, scale=scale, hit_box_algorithm="None")
+
+    def draw_visual(self, on_ground=False):
+        self.visual_badge.center_x = self.center_x
+        self.visual_badge.center_y = self.center_y
+        if not on_ground:
+            self.visual_badge.angle += 5
+        self.visual_badge.draw()
 
     
 
@@ -37,6 +49,7 @@ class Game(arcade.Window):
         self.left_pressing = False
         self.right_pressing = False
 
+        self.visual_bagde = None
         self.player_badge = None
 
         self.camera = None
@@ -51,8 +64,10 @@ class Game(arcade.Window):
         self.speedup_sound = arcade.load_sound(SPEEDUP_SOUND_PATH)
         self.collide_sound = arcade.load_sound(COLLIDE_SOUND_PATH)
         self.synthesis_sound = arcade.load_sound(SYNTHESIS_SOUND_PATH)
+        self.sound_util = self.speedup_sound
+        self.players_dict = {}
 
-        arcade.set_background_color(arcade.csscolor.CORNFLOWER_BLUE)
+        arcade.set_background_color(BACKGROUND_COLOR)
 
 
     def setup(self):
@@ -86,19 +101,10 @@ class Game(arcade.Window):
                          center_y=PLATFORM_HEIGHT,
                          hit_box_algorithm="Detailed")
             
-            # # 设置碰撞箱为矩形
-            # width, height = platform.width, platform.height
-            # platform.set_hit_box([
-            #     (-width / 2, -height / 2),
-            #     (width / 2, -height / 2),
-            #     (width / 2, height / 2),
-            #     (-width / 2, height / 2)])
-            
             self.scene['Platform'].append(platform)
-
+        
         self.scene['Player'].append(self.player_badge)
         
-
         # *初始化物理引擎
         self.physics_engine = arcade.PymunkPhysicsEngine(damping=PLAYER_DAMPING,
                                                           gravity=(0, -GRAVITY))
@@ -132,6 +138,7 @@ class Game(arcade.Window):
             "Player",
             "Other",
         ])
+        self.player_badge.draw_visual(self.physics_engine.is_on_ground(self.player_badge))
 
         self.gui_camera.use()
         self.scene.draw(["Score", ])
@@ -153,10 +160,9 @@ class Game(arcade.Window):
         #                 int(not self.right_pressing) * (-HORIZONTAL_SPEED)
         (player := self.scene['Player'][0]) and \
             not self.physics_engine.is_on_ground(player) and \
-                self.physics_engine.apply_impulse(player, 
-                                          (HORIZONTAL_SPEED * int(self.right_pressing) - 
-                                                    HORIZONTAL_SPEED * int(self.left_pressing), 0)) and \
-                self.apply_rotation(player)
+                self.physics_engine.apply_impulse(player, (HORIZONTAL_SPEED * int(self.right_pressing) -
+                            HORIZONTAL_SPEED * int(self.left_pressing), 0))
+                # (self.apply_rotation(player))
 
         for body in bodys:
             body.velocity = pymunk.Vec2d(
@@ -177,12 +183,22 @@ class Game(arcade.Window):
             self.left_pressing = True
         elif symbol in (arcade.key.D, arcade.key.RIGHT):
             self.right_pressing = True
+        else:
+            return
+        if not self.players_dict.get("speedup"):
+            self.players_dict["speedup"] = self.speedup_sound.play()
+
+
+
     
     def on_key_release(self, symbol: int, modifiers: int):
         if symbol in (arcade.key.A, arcade.key.LEFT):
             self.left_pressing = False
         elif symbol in (arcade.key.D, arcade.key.RIGHT):
             self.right_pressing = False
+        else:
+            return
+
 
     def check_bounds(self, sprites: arcade.SpriteList | arcade.Sprite):
         if isinstance(sprites, arcade.SpriteList):
@@ -199,7 +215,18 @@ class Game(arcade.Window):
         return True
     
     def apply_rotation(self, sprite):
-        self.physics_engine.get_physics_object(sprite).body.angle += 20
+        self.physics_engine.get_physics_object(sprite).body.angular_velocity = 1
+        impulse_magnitude = HORIZONTAL_SPEED * int(self.right_pressing) - \
+                            HORIZONTAL_SPEED * int(self.left_pressing)
+
+        return True
+        # return (
+        #     math.cos(math.radians(sprite.angle)) * impulse_magnitude,
+        #     math.sin(math.radians(sprite.angle)) * impulse_magnitude,
+        # )
+
+        
+        
         return True
 
 def main():
