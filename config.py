@@ -16,6 +16,9 @@ COLLIDE_SOUND_PATH = "assets/sounds/collide.mp3"
 PLATFORM_SCALE = 0.5
 PLATFORM_HEIGHT = 0
 
+BADGE_SCALE = 0.2
+BADGE_RADIUS = int(256 * BADGE_SCALE // 2)
+
 VERTICAL_SPEEDUP = 20
 
 GRAVITY = 1500
@@ -26,9 +29,25 @@ PLAYER_DAMPING = 0.4
 BACKGROUND_COLOR = (100, 149, 237)
 
 PLYAYER_FRICITON = 1.0
-PLATFORM_FRICTION = 2.0
-DYNAMIC_ITEMS_FRICTION = 0.6
+PLATFORM_FRICTION = 100
+DYNAMIC_ITEMS_FRICTION = 0.1
 
 PLAYER_MASS = 2.0
 MAX_VERTICAL_SPEED = -10
 HORIZONTAL_SPEED = 20
+
+ROTATION_SPEED = 10
+
+RANDOM_BADGE = (
+    "assets/images/bs.png",
+    "assets/images/cl.png",
+    "assets/images/fd.png",
+    "assets/images/gd.png",
+    "assets/images/gz.png",
+    "assets/images/hd.png",
+    "assets/images/sc.png",
+    "assets/images/sj.png",
+    "assets/images/wh.png",
+    "assets/images/xd.png",
+)
+
