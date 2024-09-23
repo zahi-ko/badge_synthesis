@@ -4,9 +4,7 @@ import random
 import pymunk
 import arcade
 
-
 from config import *
-# from sound import SoundManager
 
 
 class BadgeSprite(arcade.SpriteCircle):
@@ -44,8 +42,8 @@ class OtherBadge(BadgeSprite):
         img = random.choice(RANDOM_BADGE)
         super().__init__(img, scale=scale)
         
-        self.left = random.randint(0, WINDOW_WIDTH)
-        self.top = WINDOW_HEIGHT
+        self.left = random.randint(10, WINDOW_WIDTH-10)
+        self.top = WINDOW_HEIGHT + 100
 
 
 class Game(arcade.Window):
@@ -128,7 +126,6 @@ class Game(arcade.Window):
             )
             self.scene['Platform'].append(platform1)
             self.scene['Platform'].append(platform2)
-        # self.scene['Player'].append(self.player_badge)
         
         # *初始化物理引擎
         self.physics_engine = arcade.PymunkPhysicsEngine(damping=PLAYER_DAMPING,
