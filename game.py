@@ -1,96 +1,14 @@
-import datetime
 import os
-import random
 import pickle
+import random
+import datetime
 
-import arcade.csscolor
-import pymunk
 import arcade
 
 from config import *
-
-class Particle(arcade.SpriteCircle):
-    def __init__(self, position, velocity, lifetime, color):
-        super().__init__(radius=3, color=color)
-        self.center_x, self.center_y = position
-        self.change_x, self.change_y = velocity
-        self.lifetime = lifetime
-
-    def update(self):
-        super().update()
-        self.lifetime -= 1
-        if self.lifetime <= 0:
-            self.remove_from_sprite_lists()
-
-class ExplosionEffect:
-    def __init__(self, position, particle_count=50):
-        self.particles = arcade.SpriteList()
-        self.position = position
-        for _ in range(particle_count):
-            velocity = (random.uniform(-4, 4), random.uniform(-4, 4))
-            lifetime = random.randint(30, 60)
-            color = random.choice([arcade.color.RED, arcade.color.ORANGE, arcade.color.YELLOW])
-            particle = Particle(position, velocity, lifetime, color)
-            self.particles.append(particle)
-
-    def update(self):
-        self.particles.update()
-
-    def draw(self):
-        self.particles.draw()
-
-class BadgeSprite(arcade.SpriteCircle):
-    def __init__(self, scale=BADGE_SCALE, radius=BADGE_RADIUS, color=(0, 0, 0, 0), soft=False, size=-1, img_path=None):
-        super().__init__(radius, color, soft)
-        
-
-        if size > 0:
-            self.size = size
-        elif (size := random.random()) and False: 
-            pass
-        elif size <= 0.6:
-            self.size = 1
-        elif size <= 0.85:
-            self.size = 1.5
-        elif size <= 0.95:
-            self.size = 2
-        else:
-            self.size = 3
-
-        radius *= self.size
-
-        self._hit_box_algorithm = "Detailed"
-
-        self.left = random.randint(radius // 1, WINDOW_WIDTH-radius//1)
-        self.top = WINDOW_HEIGHT + 100
-
-        self.rotate = True
-
-        # # !当使用全透明后，sprite似乎不会自动生成hitbox，所以需要手动设置
-        self.set_hit_box([
-            (-radius, -radius),
-            (radius, -radius),
-            (radius, radius),
-            (-radius, radius)
-        ])
-        # self.set_hit_box(self.get_adjusted_hit_box())
-
-        self.img_path = img_path if img_path else random.choice(RANDOM_BADGE) 
-        self.visual_badge = arcade.Sprite(self.img_path, scale=scale*self.size, hit_box_algorithm="None")
-
-    def draw_visual(self):
-        self.visual_badge.center_x = self.center_x
-        self.visual_badge.center_y = self.center_y
-
-        if self.rotate:
-            self.visual_badge.angle += ROTATION_SPEED
-        self.visual_badge.draw()
-
-
-class OtherBadge(BadgeSprite):
-    def __init__(self, scale=BADGE_SCALE, size=-1, img_path=None):
-        super().__init__(scale=scale, size=size, img_path=img_path)
-        self.rotate = False
+from effect import ExplosionEffect, SynthesisEffect
+from badge import BadgeSprite, OtherBadge
+import effect
 
 
 class Game(arcade.Window):
@@ -117,6 +35,7 @@ class Game(arcade.Window):
         self.physics_engine = None
 
         self.explosion_effects: list[ExplosionEffect] = []
+        self.synthesis_effects: list[SynthesisEffect] = []
 
         self.sprites_to_add = []
         self.sprites_to_remove = []
@@ -177,7 +96,7 @@ class Game(arcade.Window):
             self.scene['Platform'].append(platform2)
         
         # *初始化物理引擎
-        self.physics_engine = arcade.PymunkPhysicsEngine(damping=1., gravity=(0, -GRAVITY))
+        self.physics_engine = arcade.PymunkPhysicsEngine(damping=0.8, gravity=(0, -GRAVITY))
 
         # *添加sprites到物理引擎
         self.sprites_to_add.append(self.player)
@@ -192,9 +111,6 @@ class Game(arcade.Window):
                        collision_type="boundary",
                        body_type=arcade.PymunkPhysicsEngine.STATIC
         )
-        
-        self.physics_engine.add_collision_handler("other", "static", post_handler=self.stop_rotation)
-        self.physics_engine.add_collision_handler("player", "static", post_handler=self.stop_rotation)
 
         self.physics_engine.add_collision_handler("other", "other", post_handler=self.synthesis)
         self.physics_engine.add_collision_handler("player", "other", post_handler=self.synthesis_player)
@@ -216,6 +132,7 @@ class Game(arcade.Window):
         [p.draw_visual() for p in self.scene['Player'] if p]
         [sprite.draw_visual() for sprite in self.scene['Other'] if sprite]
         [effect.draw() for effect in self.explosion_effects]
+        [effect.draw() for effect in self.synthesis_effects]
 
         self.gui_camera.use()
         # self.scene.draw(["Score", ])
@@ -227,17 +144,17 @@ class Game(arcade.Window):
         if self.paused: return
         self.physics_engine.step(delta_time=0.2)
 
-        for explosion_effect in self.explosion_effects:
-            explosion_effect.update()
-
-        self.explosion_effects = [effect for effect in self.explosion_effects if effect.particles]
-
+        for effect_list in [self.explosion_effects, self.synthesis_effects]:
+            for effect in effect_list:
+                effect.update()
+            effect_list[:] = [effect for effect in effect_list if effect.particles]
+        
         # 处理需要删除的sprite
         for sprite in self.sprites_to_remove:
             sprite.remove_from_sprite_lists()
             if sprite == self.player:
                 self.player = None
-                arcade.schedule(self.generate_player, 1)
+                self.generate_player()
         self.sprites_to_remove.clear()
         
         # 处理需要添加的sprite
@@ -252,12 +169,12 @@ class Game(arcade.Window):
                 sprite=sprite,
                 collision_type=collsion_type,
                 max_horizontal_velocity=HORIZONTAL_SPEED,
-                max_vertical_velocity=MAX_VERTICAL_SPEED,
+                max_vertical_velocity=100,
 
             )
         self.sprites_to_add.clear()
 
-        # self.set_velocity(["Other", ])
+        self.set_velocity()
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol in (arcade.key.A, arcade.key.LEFT):
@@ -286,10 +203,13 @@ class Game(arcade.Window):
         self.sprites_to_add.append(tmp)
 
     def generate_player(self, *args):
+        arcade.schedule(self._generate_player, random.uniform(1, 3))
+    
+    def _generate_player(self, *args):
         self.player = BadgeSprite()
         self.sprites_to_add.append(self.player)
 
-        arcade.unschedule(self.generate_player)
+        arcade.unschedule(self._generate_player)
 
     def set_velocity(self):
         """  更新当前player的速度 """
@@ -297,13 +217,6 @@ class Game(arcade.Window):
             ((self.physics_engine.is_on_ground(player) and self.generate_player()) or \
             self.physics_engine.apply_impulse(player, (HORIZONTAL_SPEED * int(self.right_pressing) -
                         HORIZONTAL_SPEED * int(self.left_pressing), 0)))
-
-        player_speed = MAX_VERTICAL_SPEED - VERTICAL_SPEEDUP * self.down_pressing
-        if player and (body := self.physics_engine.get_physics_object(player).body):
-            body.velocity = pymunk.Vec2d(
-                body.velocity.x,
-                player_speed if body.velocity.y < player_speed else body.velocity.y
-            )
 
     def play_effect_sound(self, on_ground=False, collide=False, synthesis=False):
         func = lambda x: self.sound_manager.is_playing(x) or \
@@ -315,10 +228,6 @@ class Game(arcade.Window):
             self.sound_manager.play_sound("collide")
         if synthesis:
             self.sound_manager.play_sound("synthesis")
-        
-    def stop_rotation(self, player_sprite, *args):
-        return 
-        self.physics_engine.get_physics_object(player_sprite).body.angular_velocity = 0
 
     def update_spritelist(self, name: str, **kwargs):
         self.physics_engine.add_sprite_list(self.scene[name], **kwargs)
@@ -335,7 +244,10 @@ class Game(arcade.Window):
                 self.explosion_effects.append(ExplosionEffect(center))
                 self.check_sprites_in_explosion_radius(center, 200)
                 return 5
-
+            
+            # 添加合成效果
+            self.synthesis_effects.append(SynthesisEffect(center))
+            
             tmp = OtherBadge(size=sp1.size+1, img_path=sp1.img_path)
             tmp.center_x, tmp.center_y = center
 
