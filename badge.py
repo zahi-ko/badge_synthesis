@@ -7,25 +7,28 @@ class BadgeSprite(arcade.SpriteCircle):
     def __init__(self, scale=BADGE_SCALE, radius=BADGE_RADIUS, color=(0, 0, 0, 0), soft=False, size=-1, img_path=None):
         super().__init__(radius, color, soft)
         
+        ss_map = {
+            1: 1,
+            2: 1.2,
+            3: 1.5
+        }
 
         if size > 0:
             self.size = size
-        elif (size := random.random()) and False: 
-            pass
-        elif size <= 0.6:
+        elif (size := random.random()) <= 0.6:
             self.size = 1
-        elif size <= 0.85:
-            self.size = 1.5
-        elif size <= 0.95:
+        elif size <= 0.9:
             self.size = 2
         else:
             self.size = 3
 
-        radius *= self.size
+        sscale = ss_map[self.size]
+
+        radius *= sscale
 
         self._hit_box_algorithm = "Detailed"
 
-        self.left = random.randint(radius, WINDOW_WIDTH - radius)
+        self.left = random.uniform(int(radius), int(WINDOW_WIDTH - radius))
         self.top = WINDOW_HEIGHT + 100
 
         self.rotate = True
@@ -40,7 +43,7 @@ class BadgeSprite(arcade.SpriteCircle):
         # self.set_hit_box(self.get_adjusted_hit_box())
 
         self.img_path = img_path if img_path else random.choice(RANDOM_BADGE) 
-        self.visual_badge = arcade.Sprite(self.img_path, scale=scale*self.size, hit_box_algorithm="None")
+        self.visual_badge = arcade.Sprite(self.img_path, scale=scale*sscale, hit_box_algorithm="None")
 
     def draw_visual(self):
         self.visual_badge.center_x = self.center_x

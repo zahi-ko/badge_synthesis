@@ -41,14 +41,14 @@ ROTATION_SPEED = 8
 
 RANDOM_BADGE = (
     "assets/images/bs.png",
-    # "assets/images/cl.png",
-    # "assets/images/fd.png",
-    # "assets/images/gd.png",
-    # "assets/images/gz.png",
-    # "assets/images/hd.png",
-    # "assets/images/sc.png",
-    # "assets/images/sj.png",
-    # "assets/images/wh.png",
+    "assets/images/cl.png",
+    "assets/images/fd.png",
+    "assets/images/gd.png",
+    "assets/images/gz.png",
+    "assets/images/hd.png",
+    "assets/images/sc.png",
+    "assets/images/sj.png",
+    "assets/images/wh.png",
     "assets/images/xd.png",
 )
 

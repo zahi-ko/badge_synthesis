@@ -29,7 +29,7 @@ class Game(arcade.Window):
         self.gui_camera = None
 
         self.score = 0
-        self.reset_score = True
+        # self.reset_score = True
 
         self.scene = None
         self.physics_engine = None
@@ -53,7 +53,7 @@ class Game(arcade.Window):
 
         # *初始化啊scene
         self.scene = arcade.Scene()
-        self.scene.add_sprite_list("Score")
+        # self.scene.add_sprite_list("Score")
         self.scene.add_sprite_list("Other")
         self.scene.add_sprite_list("Platform", use_spatial_hash=True)
         self.scene.add_sprite_list("Boundary", use_spatial_hash=True)
@@ -119,8 +119,10 @@ class Game(arcade.Window):
         self.physics_engine.add_collision_handler("player", "boundary", begin_handler=lambda: False)
         self.physics_engine.add_collision_handler("other", "boundary", begin_handler=lambda: False)
 
+        self.physics_engine.add_collision_handler("player", "platform", post_handler=self.stop_rotate)
+
         # 设置计时器
-        arcade.schedule(self.generate_badge, 0.5)
+        arcade.schedule(self.generate_badge, 2)
 
     def on_draw(self):
         self.clear()
@@ -137,7 +139,7 @@ class Game(arcade.Window):
         self.gui_camera.use()
         # self.scene.draw(["Score", ])
         arcade.draw_text(f"Score: {self.score}", 10, 10, arcade.color.BLACK, 20)
-        arcade.draw_text("Pause" if not self.paused else "Resume", self.pause_button.center_x - 40, self.pause_button.center_y - 10, arcade.color.WHITE, 14)
+        arcade.draw_text("Pause" if not self.paused else "Resume", self.pause_button.center_x - 40, self.pause_button.center_y - 10, arcade.color.WHITE, 25)
 
     def on_update(self, delta_time: float):
         """Movement and game logic"""
@@ -195,6 +197,9 @@ class Game(arcade.Window):
     def on_mouse_press(self, x, y, *args):
         if self.pause_button.collides_with_point((x, y)):
             self.paused = not self.paused
+
+    def stop_rotate(self, sp1, sp2, *args):
+        sp1.rotate = False        
 
     def generate_badge(self, *args):
         if random.choice((1, 0, 0, 0)) == 1:
@@ -258,7 +263,9 @@ class Game(arcade.Window):
         return 0
     
     def synthesis_player(self, sp1, sp2, *args):
+        self.stop_rotate(sp1, None)
         self.score += self.synthesis(sp1, sp2, *args)
+        self.score.__int__()
 
     def check_sprites_in_explosion_radius(self, explosion_center, radius):
         """检测并消除在爆炸半径内的所有精灵"""
@@ -270,6 +277,8 @@ class Game(arcade.Window):
                 if distance <= radius:
                     self.sprites_to_remove.append(sprite)
 
+
+    """ 保存和读取游戏状态 """
     def save(self):
         filename = "save" + datetime.now().strftime("%Y%m%d") + ".pkl"
         status = {
@@ -282,8 +291,39 @@ class Game(arcade.Window):
             "paused": self.paused
         }
 
-        with open(filename, "wb") as f:
+        if len(tmp := os.listdir("save") >= 5): 
+            oldest_file = min(tmp, key=lambda x: os.path.getctime(os.path.join("save", x)))
+            os.remove(os.path.join("save", oldest_file))
+
+        with open(f"save/{filename}", "wb") as f:
             pickle.dump(status, f)
+    
+    def detect_save(self):
+        if not os.path.exists("save"):
+            os.mkdir("save")
+            return []
+
+        res = []
+        for file in os.listdir("save"):
+            if file.endswith(".pkl"):
+                res.append(file)
+
+        return res
+    
+    def load(self, filename):
+        with open(filename, "rb") as f:
+            status = pickle.load(f)
+        for k, v in status.items():
+            setattr(self, k, v)
+        
+    def draw_save(self):
+        self.paused = True
+        saves = self.detect_save()
+        if not saves:
+            return
+        for i, save in enumerate(saves):
+            arcade.draw_text(save, 10, 10 + i*20, arcade.color.BLACK, 20)
+    
 
 def main():
     game = Game()
