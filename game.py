@@ -148,6 +148,7 @@ class Game(arcade.Window):
         self.communicate()
 
         if self.paused: return
+        self.process_sprites()
         self.physics_engine.step(delta_time=0.2)
 
         for effect_list in [self.explosion_effects, self.synthesis_effects]:
@@ -155,6 +156,12 @@ class Game(arcade.Window):
                 effect.update()
             effect_list[:] = [effect for effect in effect_list if effect.particles]
         
+
+        self.set_velocity()
+
+    def process_sprites(self):
+        """ 处理需要添加和删除的sprites """
+
         # 处理需要删除的sprite
         for sprite in self.sprites_to_remove:
             sprite.remove_from_sprite_lists()
@@ -179,8 +186,6 @@ class Game(arcade.Window):
 
             )
         self.sprites_to_add.clear()
-
-        self.set_velocity()
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol in (arcade.key.A, arcade.key.LEFT):
@@ -305,15 +310,32 @@ class Game(arcade.Window):
             
     """ 保存和读取游戏状态 """
     def save(self):
-        filename = "save" + datetime.datetime.now().strftime("%Y%m%d") + ".pkl"
+        # 处理add和remove的sprite
+        self.process_sprites()
+
+        filename = "save" + datetime.datetime.now().strftime("%Y%m%d%H%M") + ".pkl"
+        others = []
+        for sprite in self.scene['Other']:
+            others.append({
+                "size": sprite.size,
+                "img_path": sprite.img_path,
+                "center_x": sprite.center_x,
+                "center_y": sprite.center_y,
+                "velocity": self.physics_engine.get_physics_object(sprite).body.velocity,
+            })
+        
         status = {
             "score": self.score,
+            "paused": self.paused,
             "player": {
-                
+                "size": self.player.size,
+                "img_path": self.player.img_path,
+                "center_x": self.player.center_x,
+                "center_y": self.player.center_y,
+                "angle": self.player.visual_badge.angle,
+                "velocity": self.physics_engine.get_physics_object(self.player).body.velocity,
             },
-            "sprites_to_add": self.sprites_to_add,
-            "sprites_to_remove": self.sprites_to_remove,
-            "paused": self.paused
+            "others": others,
         }
 
         if len(tmp := os.listdir("save")) >= 5: 
@@ -336,11 +358,35 @@ class Game(arcade.Window):
         return res
     
     def load(self, filename):
-        with open(filename, "rb") as f:
+        self.setup()
+
+        with open("save\\" + filename, "rb") as f:
             status = pickle.load(f)
-        for k, v in status.items():
-            setattr(self, k, v)
+        self.score = status["score"]
+        self.paused = status["paused"]
+
+        self.player = BadgeSprite(
+            size=status["player"]["size"],
+            img_path=status["player"]["img_path"]
+        )
+        self.player.center_x = status["player"]["center_x"]
+        self.player.center_y = status["player"]["center_y"]
+        self.player.visual_badge.angle = status["player"]["angle"]
+        self.sprites_to_add.append(self.player)
+
+
+        for other in status["others"]:
+            tmp = OtherBadge(
+            size=other["size"],
+            img_path=other["img_path"]
+            )
+            tmp.center_x = other["center_x"]
+            tmp.center_y = other["center_y"]
+            self.sprites_to_add.append(tmp)
+            self.process_sprites()
+            self.physics_engine.set_velocity(tmp, other["velocity"])
         
+        self.physics_engine.set_velocity(self.player, status["player"]["velocity"])
     def draw_save(self):
         self.paused = True
         saves = self.detect_save()
