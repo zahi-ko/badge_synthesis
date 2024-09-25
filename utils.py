@@ -52,6 +52,20 @@ class UtilDatabase:
     """
 
     @staticmethod
+    def clear_table(cursor, table_name: str):
+        if not table_name:
+            raise ValueError("table_name should be given")
+        command = f"DELETE FROM {table_name}"
+        cursor.execute(command)
+    
+    @staticmethod
+    def clear_database(cursor):
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        for table_name in tables:
+            cursor.execute(f"DROP TABLE IF EXISTS {table_name[0]}")
+
+    @staticmethod
     def create_table(cursor, name, fields: dict):
         if not name or not fields:
             raise ValueError("name and fields should be given")
@@ -130,6 +144,14 @@ class UtilDatabase:
     @staticmethod
     def safe_update_data(conn, cursor, data_name: str, data: dict, condition: dict):
         return UtilDatabase.safe_action(UtilDatabase.update_data, conn, cursor, data_name, data, condition)
+
+    @staticmethod
+    def safe_clear_table(conn, cursor, table_name: str):
+        return UtilDatabase.safe_action(UtilDatabase.clear_table, conn, cursor, table_name)
+
+    @staticmethod
+    def safe_clear_database(conn, cursor):
+        return UtilDatabase.safe_action(UtilDatabase.clear_database, conn, cursor)
 
 class UtilDataclass:
     @staticmethod
