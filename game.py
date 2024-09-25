@@ -6,13 +6,13 @@ import datetime
 import arcade
 
 from config import *
-from effect import ExplosionEffect, SynthesisEffect
+from multiprocessing import Queue
 from badge import BadgeSprite, OtherBadge
-import effect
+from effect import ExplosionEffect, SynthesisEffect
 
 
 class Game(arcade.Window):
-    def __init__(self):
+    def __init__(self, queue1, queue2):
         super().__init__(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, update_rate=1/FPS)
         
         file_path = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +40,8 @@ class Game(arcade.Window):
         self.sprites_to_add = []
         self.sprites_to_remove = []
 
+        self.send_queue = queue1
+        self.receive_queue = queue2
         arcade.set_background_color(BACKGROUND_COLOR)
 
 
@@ -143,6 +145,8 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time: float):
         """Movement and game logic"""
+        self.communicate()
+
         if self.paused: return
         self.physics_engine.step(delta_time=0.2)
 
@@ -202,6 +206,8 @@ class Game(arcade.Window):
         sp1.rotate = False        
 
     def generate_badge(self, *args):
+        if self.paused: return
+
         if random.choice((1, 0, 0, 0)) == 1:
             return
         tmp = OtherBadge()
@@ -277,21 +283,40 @@ class Game(arcade.Window):
                 if distance <= radius:
                     self.sprites_to_remove.append(sprite)
 
+    def on_deactivate(self):
+        self.paused = True
 
+    def communicate(self):
+        """ 与其他进程通信 """
+        while not self.receive_queue.empty():
+            match self.receive_queue.get():
+                case "pause":
+                    self.paused = True
+                case "resume":
+                    self.paused = False
+                case "exit":
+                    arcade.close_window()
+                case "save":
+                    self.save()
+                case "detect_save":
+                    self.send_queue.put(self.detect_save())
+                case "load":
+                    self.load(self.receive_queue.get())
+            
     """ 保存和读取游戏状态 """
     def save(self):
-        filename = "save" + datetime.now().strftime("%Y%m%d") + ".pkl"
+        filename = "save" + datetime.datetime.now().strftime("%Y%m%d") + ".pkl"
         status = {
             "score": self.score,
-            "player": self.player,
+            "player": {
+                
+            },
             "sprites_to_add": self.sprites_to_add,
             "sprites_to_remove": self.sprites_to_remove,
-            "explosion_effects": self.explosion_effects,
-            "scene": self.scene,
             "paused": self.paused
         }
 
-        if len(tmp := os.listdir("save") >= 5): 
+        if len(tmp := os.listdir("save")) >= 5: 
             oldest_file = min(tmp, key=lambda x: os.path.getctime(os.path.join("save", x)))
             os.remove(os.path.join("save", oldest_file))
 
@@ -325,11 +350,7 @@ class Game(arcade.Window):
             arcade.draw_text(save, 10, 10 + i*20, arcade.color.BLACK, 20)
     
 
-def main():
-    game = Game()
+def run(queue1: Queue, queue2: Queue):
+    game = Game(queue1, queue2)
     game.setup()
     arcade.run()
-
-
-if __name__ == "__main__":
-    main()

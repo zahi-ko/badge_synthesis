@@ -5,14 +5,52 @@ import datetime
 
 from models import User, Record, Progress
 
-conn = sqlite3.connect("data.db")
+conn = sqlite3.connect("aaa.db")
 cursor = conn.cursor()
 
 class UtilDatabase:
-    
     """
-    @param fields: dict {field_name: field_type (TEXT, INTEGER, REAL, BLOB)}
+    A utility class for performing common database operations such as creating tables, inserting data, updating data, and selecting data.
+    Methods
+    -------
+    create_table(cursor, name, fields: dict)
+        Creates a table with the given name and fields.
+        Example:
+            UtilDatabase.create_table(cursor, 'users', {'id': 'INTEGER', 'name': 'TEXT'})
+    insert_data(cursor, data_name: str, data: dict)
+        Inserts data into the specified table.
+        Example:
+            UtilDatabase.insert_data(cursor, 'users', {'id': 1, 'name': 'Alice'})
+    update_data(cursor, data_name: str, data: dict, condition: dict)
+        Updates data in the specified table based on the given condition.
+        Example:
+            UtilDatabase.update_data(cursor, 'users', {'name': 'Bob'}, {'id': 1})
+    select_data(cursor, data_name: str, fields: list, condition: dict = None)
+        Selects data from the specified table based on the given condition.
+        Example:
+            UtilDatabase.select_data(cursor, 'users', ['id', 'name'], {'id': 1})
+    safe_action(action, conn, cursor, *args, **kwargs)
+        Safely performs a database action, committing the transaction if successful or rolling back if an error occurs.
+        Example:
+            UtilDatabase.safe_action(UtilDatabase.insert_data, conn, cursor, 'users', {'id': 1, 'name': 'Alice'})
+    safe_insert_data(conn, cursor, data_name: str, data: dict)
+        Safely inserts data into the specified table.
+        Example:
+            UtilDatabase.safe_insert_data(conn, cursor, 'users', {'id': 1, 'name': 'Alice'})
+    safe_select_data(conn, cursor, data_name: str, fields: list, condition: dict = None)
+        Safely selects data from the specified table based on the given condition.
+        Example:
+            UtilDatabase.safe_select_data(conn, cursor, 'users', ['id', 'name'], {'id': 1})
+    safe_create_table(conn, cursor, name, fields)
+        Safely creates a table with the given name and fields.
+        Example:
+            UtilDatabase.safe_create_table(conn, cursor, 'users', {'id': 'INTEGER', 'name': 'TEXT'})
+    safe_update_data(conn, cursor, data_name: str, data: dict, condition: dict)
+        Safely updates data in the specified table based on the given condition.
+        Example:
+            UtilDatabase.safe_update_data(conn, cursor, 'users', {'name': 'Bob'}, {'id': 1})    
     """
+
     @staticmethod
     def create_table(cursor, name, fields: dict):
         if not name or not fields:
@@ -44,22 +82,17 @@ class UtilDatabase:
 
     @staticmethod
     def update_data(cursor, data_name: str = None, data: dict = None, condition: dict = None):
-        if data_name is None or data is None:
-            raise ValueError("data_name and data should be given")
+        if data_name is None or data is None or condition is None:
+            raise ValueError("data_name, data, and condition should be given")
+        
         command_prefix = f"UPDATE {data_name} SET "
+        set_clause = ", ".join([f"{key} = ?" for key in data.keys()])
+        where_clause = " AND ".join([f"{key} = ?" for key in condition.keys()])
+        
+        command = f"{command_prefix}{set_clause} WHERE {where_clause}"
+        values = list(data.values()) + list(condition.values())
 
-        data_list = []
-        data_length = 0
-
-        for key in data.keys():
-            data_list.append(key)
-            data_length += 1
-
-        command = command_prefix + ", ".join([f"{key} = ?" for key in data_list]) + " " + \
-            "WHERE " + " AND ".join([f"{key} = ?" for key in condition.keys()]) if condition else ""
-        values = [data[key] for key in data.keys()]
-
-        cursor.execute(command, values.extend(tuple(condition.values())))
+        cursor.execute(command, values)
 
     @staticmethod
     def select_data(cursor, data_name: str = None, fields: list = None, condition: dict = None):
@@ -68,7 +101,7 @@ class UtilDatabase:
         command_prefix = f"SELECT {', '.join(fields)} FROM {data_name} "
         command = command_prefix + "WHERE " + " AND ".join([f"{key} = ?" for key in condition.keys()]) if condition else ""
 
-        cursor.execute(command, tuple(condition.values()))
+        cursor.execute(command, (*condition.values(),))
 
         return cursor.fetchall()
     
@@ -79,6 +112,7 @@ class UtilDatabase:
             conn.commit()
             return res
         except Exception as e:
+            print(f"Error: {e}")
             conn.rollback()
     
     @staticmethod
@@ -194,14 +228,15 @@ class UtilUser:
     def change_name(user: User, new_name: str):
         user.name = new_name
         UtilDataclass.update_user_to_database(user)
-
-def load_img_for_number(number: int, path: str = "images/numbers.png"):
-    if not path: return
-    from arcade import load_texture
-
-    number = str(number)
     
-    return load_texture(path, x=number*69, width=69, height=60, hit_box_algorithm="None")
+def test():
+    a = UtilDatabase
+    a.safe_create_table(conn, cursor, "user", {"id": "INTEGER", "name": "TEXT", "password": "TEXT"})
+    a.safe_insert_data(conn, cursor, "user", {"id": 1, "name": "Alice", "password": "123"})
+    a.safe_insert_data(conn, cursor, "user", {"id": 2, "name": "Bob", "password": "456"})
+    a.safe_insert_data(conn, cursor, "user", {"id": 3, "name": "Charlie", "password": "789"})
+    a.safe_update_data(conn, cursor, "user", {"name": "David"}, {"id": 1})
+    print(a.safe_select_data(conn, cursor, "user", ["id", "name"], {"id": 1}))
 
-
-    
+test()
+conn.close()
