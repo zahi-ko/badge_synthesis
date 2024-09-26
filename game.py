@@ -303,8 +303,8 @@ class Game(arcade.Window):
                     arcade.close_window()
                 case "save":
                     self.save()
-                case "detect_save":
-                    self.send_queue.put(self.detect_save())
+                case "show_save":
+                    self.send_queue.put(self.show_save())
                 case "load":
                     self.load(self.receive_queue.get())
             
@@ -345,7 +345,7 @@ class Game(arcade.Window):
         with open(f"save/{filename}", "wb") as f:
             pickle.dump(status, f)
     
-    def detect_save(self):
+    def show_save(self):
         if not os.path.exists("save"):
             os.mkdir("save")
             return []
@@ -389,7 +389,7 @@ class Game(arcade.Window):
         self.physics_engine.set_velocity(self.player, status["player"]["velocity"])
     def draw_save(self):
         self.paused = True
-        saves = self.detect_save()
+        saves = self.show_save()
         if not saves:
             return
         for i, save in enumerate(saves):

@@ -251,14 +251,3 @@ class UtilUser:
         user.name = new_name
         UtilDataclass.update_user_to_database(user)
     
-def test():
-    a = UtilDatabase
-    a.safe_create_table(conn, cursor, "user", {"id": "INTEGER", "name": "TEXT", "password": "TEXT"})
-    a.safe_insert_data(conn, cursor, "user", {"id": 1, "name": "Alice", "password": "123"})
-    a.safe_insert_data(conn, cursor, "user", {"id": 2, "name": "Bob", "password": "456"})
-    a.safe_insert_data(conn, cursor, "user", {"id": 3, "name": "Charlie", "password": "789"})
-    a.safe_update_data(conn, cursor, "user", {"name": "David"}, {"id": 1})
-    print(a.safe_select_data(conn, cursor, "user", ["id", "name"], {"id": 1}))
-
-test()
-conn.close()

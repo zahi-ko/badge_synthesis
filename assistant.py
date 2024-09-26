@@ -1,7 +1,6 @@
 import io
 import cmd
 import time
-import utils
 import tkinter as tk
 
 from multiprocessing import Queue
@@ -53,9 +52,9 @@ class Assistant(cmd.Cmd):
         self.send_queue.put(arg)
         self.stdout.write('游戏已加载\n')
     
-    def do_detect_save(self, arg):
+    def do_show_save(self, arg):
         '检测存档'
-        self.send_queue.put('detect_save')
+        self.send_queue.put('show_save')
         self.stdout.write('存档检测中......\n')
 
         saves = self.receive_queue.get()
